@@ -2,7 +2,12 @@
   "permissions": {
     "allow": [
       "Bash(export PATH=\"/Users/hermanhello/.cargo/bin:$PATH\")",
-      "Bash(wasm-pack build:*)"
+      "Bash(wasm-pack build:*)",
+      "Bash(git -C /Users/hermanhello/Documents/wasm log --oneline -3)",
+      "Bash(git -C /Users/hermanhello/Documents/wasm checkout:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)"
     ]
   }
 }
