@@ -3,7 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SailingCalculator</title>
+    <title>Zeilen of Motoren</title>
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#1976d2">
+    <meta name="description" content="Bereken hoelang je kunt zeilen voordat je de motor moet starten">
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500&display=swap">
     <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
     <style>
@@ -36,7 +39,7 @@
             background: none; border: none; cursor: pointer;
             width: 40px; height: 40px; border-radius: 50%;
             display: flex; align-items: center; justify-content: center;
-            color: rgba(0,0,0,.54);
+            color: rgba(0,0,0,.54); flex-shrink: 0;
         }
         .icon-btn:hover { background: rgba(0,0,0,.04); }
 
@@ -86,7 +89,7 @@
             color: rgba(0,0,0,.6);
         }
         .text-field .error-msg {
-            font-size: 0.75rem; color: #b00020; margin-top: 4px; min-height: 16px;
+            font-size: 0.75rem; color: #b00020; margin-top: 4px; min-height: 0;
         }
         .text-field.has-error input { border-color: #b00020; }
         .text-field.has-error label { color: #b00020; }
@@ -95,11 +98,51 @@
         .row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
         @media (max-width: 480px) { .row { grid-template-columns: 1fr; } }
 
-        /* Result card title */
-        .result-title {
-            font-size: 1.5rem; font-weight: 400; padding: 16px;
+        /* Result card */
+        .result-title-row {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 16px;
         }
-        .result-text { padding: 0 16px 16px; font-size: 1rem; line-height: 1.6; }
+        .result-title { font-size: 1.5rem; font-weight: 400; }
+        .result-text { padding: 0 16px 8px; font-size: 1rem; line-height: 1.6; }
+
+        /* Visual timeline (#19) */
+        .timeline {
+            display: flex; height: 24px; border-radius: 4px; overflow: hidden;
+            margin: 0 16px 16px; background: #e0e0e0;
+        }
+        .timeline-sail {
+            background: #1976d2; display: flex; align-items: center;
+            justify-content: center; color: #fff; font-size: 0.75rem; font-weight: 500;
+            min-width: 0; overflow: hidden; white-space: nowrap;
+            transition: width .3s;
+        }
+        .timeline-motor {
+            background: #e65100; display: flex; align-items: center;
+            justify-content: center; color: #fff; font-size: 0.75rem; font-weight: 500;
+            min-width: 0; overflow: hidden; white-space: nowrap;
+            transition: width .3s;
+        }
+        .timeline-legend {
+            display: flex; gap: 16px; padding: 0 16px 16px; font-size: 0.75rem; color: rgba(0,0,0,.6);
+        }
+        .legend-dot {
+            display: inline-block; width: 10px; height: 10px; border-radius: 50%;
+            margin-right: 4px; vertical-align: middle;
+        }
+        .legend-sail { background: #1976d2; }
+        .legend-motor { background: #e65100; }
+
+        /* Share button (#18) */
+        .share-btn {
+            background: none; border: none; cursor: pointer;
+            color: rgba(0,0,0,.54); display: flex; align-items: center;
+            gap: 4px; font-size: 0.8rem; padding: 4px 8px; border-radius: 4px;
+        }
+        .share-btn:hover { background: rgba(0,0,0,.04); }
+        .share-btn .material-icons { font-size: 18px; }
+        .copied-msg { color: #4caf50; font-size: 0.8rem; margin-left: 8px; opacity: 0; transition: opacity .3s; }
+        .copied-msg.show { opacity: 1; }
 
         /* Dialog overlay */
         .dialog-overlay {
@@ -111,10 +154,11 @@
         .dialog {
             background: #fff; border-radius: 4px; max-width: 500px; width: 90%;
             box-shadow: 0 11px 15px -7px rgba(0,0,0,.2), 0 24px 38px 3px rgba(0,0,0,.14), 0 9px 46px 8px rgba(0,0,0,.12);
+            max-height: 90vh; display: flex; flex-direction: column;
         }
-        .dialog-title { font-size: 1.25rem; font-weight: 500; padding: 16px 24px 8px; }
+        .dialog-title { font-size: 1.25rem; font-weight: 500; padding: 16px 24px 8px; flex-shrink: 0; }
         .dialog-text { padding: 0 24px 16px; color: rgba(0,0,0,.6); }
-        .dialog-actions { padding: 8px; display: flex; justify-content: flex-end; gap: 8px; }
+        .dialog-actions { padding: 8px; display: flex; justify-content: flex-end; gap: 8px; flex-shrink: 0; }
         .dialog-actions button {
             background: none; border: none; cursor: pointer;
             padding: 8px 16px; font-size: 0.875rem; font-weight: 500;
@@ -124,10 +168,11 @@
         .btn-secondary { color: rgba(0,0,0,.6); }
         .btn-primary:hover, .btn-secondary:hover { background: rgba(0,0,0,.04); }
 
-        /* Settings dialog fields */
-        .settings-section { margin-bottom: 12px; }
-        .settings-section .text-field { margin-bottom: 12px; }
-        .dialog-form { padding: 0 24px; }
+        /* Settings dialog (#14: scrollable) */
+        .dialog-form {
+            padding: 0 24px; overflow-y: auto; flex: 1;
+        }
+        .dialog-form .text-field { margin-bottom: 12px; }
         .dialog-form .text-field input { font-size: 0.875rem; padding: 16px 12px 4px; }
         .dialog-form .text-field input:focus { padding: 15px 11px 3px; }
         .dialog-form .text-field label { top: 10px; font-size: 0.875rem; }
@@ -170,12 +215,13 @@
 
             <!-- Distance and fuel row -->
             <div class="row">
-                <div class="text-field">
-                    <input type="number" id="distance" placeholder=" " min="0">
+                <div class="text-field" id="distance-field">
+                    <input type="number" id="distance" placeholder=" " min="0.1" step="0.1">
                     <label for="distance" id="distance-label">Afstand (zeemijl)</label>
+                    <div class="error-msg" id="distance-error"></div>
                 </div>
                 <div class="text-field">
-                    <input type="number" id="fuel-consumption" placeholder=" " min="0" step="0.1">
+                    <input type="number" id="fuel-consumption" placeholder=" " min="0.1" step="0.1">
                     <label for="fuel-consumption">Brandstofverbruik (liter/uur)</label>
                 </div>
             </div>
@@ -183,12 +229,12 @@
             <!-- Speed row -->
             <div class="row">
                 <div class="text-field" id="sail-speed-field">
-                    <input type="number" id="sail-speed" placeholder=" " min="0">
+                    <input type="number" id="sail-speed" placeholder=" " min="0.1" step="0.1">
                     <label for="sail-speed" id="sail-speed-label">Zeilsnelheid (knopen)</label>
                     <div class="error-msg" id="sail-speed-error"></div>
                 </div>
                 <div class="text-field" id="motor-speed-field">
-                    <input type="number" id="motor-speed" placeholder=" " min="0">
+                    <input type="number" id="motor-speed" placeholder=" " min="0.1" step="0.1">
                     <label for="motor-speed" id="motor-speed-label">Motorsnelheid (knopen)</label>
                     <div class="error-msg" id="motor-speed-error"></div>
                 </div>
@@ -198,8 +244,24 @@
 
     <!-- Result Card -->
     <div class="card" id="result-card" style="display:none;">
-        <div class="result-title">Uitkomst</div>
+        <div class="result-title-row">
+            <span class="result-title">Uitkomst</span>
+            <div style="display:flex;align-items:center;">
+                <button class="share-btn" id="share-btn" title="Kopieer resultaat">
+                    <span class="material-icons">content_copy</span>
+                </button>
+                <span class="copied-msg" id="copied-msg">Gekopieerd!</span>
+            </div>
+        </div>
         <div class="result-text" id="result-text"></div>
+        <div class="timeline" id="timeline" style="display:none;">
+            <div class="timeline-sail" id="timeline-sail"></div>
+            <div class="timeline-motor" id="timeline-motor"></div>
+        </div>
+        <div class="timeline-legend" id="timeline-legend" style="display:none;">
+            <span><span class="legend-dot legend-sail"></span>Zeilen</span>
+            <span><span class="legend-dot legend-motor"></span>Motor</span>
+        </div>
     </div>
 </div>
 
@@ -215,11 +277,18 @@
     </div>
 </div>
 
-<!-- Settings Dialog -->
+<!-- Settings Dialog (#14: scrollable, #15: useMetric toggle) -->
 <div class="dialog-overlay" id="settings-dialog">
     <div class="dialog">
         <div class="dialog-title">Instellingen</div>
         <div class="dialog-form">
+            <div class="switch-row" style="margin-bottom:12px;">
+                <label class="switch">
+                    <input type="checkbox" id="s-use-metric">
+                    <span class="slider"></span>
+                </label>
+                <span class="switch-label" id="s-unit-label">Nautisch (zeemijl, knopen)</span>
+            </div>
             <div class="text-field">
                 <input type="time" id="s-default-start" placeholder=" ">
                 <label>Standaard starttijd</label>
@@ -265,17 +334,23 @@
 </div>
 
 <script type="module">
-    import init, { calculate, validate_motor_speed, needs_next_day } from './pkg/wasm_browser.js';
+    import init, { calculate, validate_motor_speed, needs_next_day, validate_max } from './pkg/wasm_browser.js';
 
     await init();
 
-    // --- Settings (matching Vue defaults) ---
+    // --- Constants ---
+    const SCENARIO_ERROR = 0, SCENARIO_SAIL_ONLY = 1, SCENARIO_SAIL_AND_MOTOR = 2,
+          SCENARIO_MOTOR_ONLY = 3, SCENARIO_MOTOR_LATE = 4;
+    const STORAGE_KEY = 'sailing-calc-settings';
+    const KM_PER_NM = 1.852;
+
+    // --- Settings with defaults ---
     const now = new Date();
     const startH = now.getHours();
     const startM = now.getMinutes();
     const arrivalH = Math.ceil((startH + 3 + (startM > 0 ? 1 : 0)) % 24);
 
-    let settings = {
+    const defaultSettings = {
         defaultStartTime: `${String(startH).padStart(2,'0')}:${String(startM).padStart(2,'0')}`,
         defaultArrivalTime: `${String(arrivalH).padStart(2,'0')}:00`,
         defaultDistance: 25,
@@ -288,26 +363,48 @@
         useMetric: false,
     };
 
+    // (#7/#16) Load settings from localStorage
+    let settings;
+    try {
+        const stored = localStorage.getItem(STORAGE_KEY);
+        settings = stored ? { ...defaultSettings, ...JSON.parse(stored) } : { ...defaultSettings };
+    } catch {
+        settings = { ...defaultSettings };
+    }
+
+    function saveSettings() {
+        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(settings)); } catch {}
+    }
+
     let isNextDay = false;
 
     // --- DOM refs ---
-    const $startTime = document.getElementById('start-time');
-    const $arrivalTime = document.getElementById('arrival-time');
-    const $distance = document.getElementById('distance');
-    const $sailSpeed = document.getElementById('sail-speed');
-    const $motorSpeed = document.getElementById('motor-speed');
-    const $fuelConsumption = document.getElementById('fuel-consumption');
-    const $useMetric = document.getElementById('use-metric');
-    const $unitLabel = document.getElementById('unit-label');
-    const $distanceLabel = document.getElementById('distance-label');
-    const $sailSpeedLabel = document.getElementById('sail-speed-label');
-    const $motorSpeedLabel = document.getElementById('motor-speed-label');
-    const $resultCard = document.getElementById('result-card');
-    const $resultText = document.getElementById('result-text');
-    const $motorSpeedError = document.getElementById('motor-speed-error');
-    const $motorSpeedField = document.getElementById('motor-speed-field');
+    const $ = id => document.getElementById(id);
+    const $startTime = $('start-time');
+    const $arrivalTime = $('arrival-time');
+    const $distance = $('distance');
+    const $sailSpeed = $('sail-speed');
+    const $motorSpeed = $('motor-speed');
+    const $fuelConsumption = $('fuel-consumption');
+    const $useMetric = $('use-metric');
+    const $unitLabel = $('unit-label');
+    const $distanceLabel = $('distance-label');
+    const $sailSpeedLabel = $('sail-speed-label');
+    const $motorSpeedLabel = $('motor-speed-label');
+    const $resultCard = $('result-card');
+    const $resultText = $('result-text');
+    const $distanceError = $('distance-error');
+    const $distanceField = $('distance-field');
+    const $sailSpeedError = $('sail-speed-error');
+    const $sailSpeedField = $('sail-speed-field');
+    const $motorSpeedError = $('motor-speed-error');
+    const $motorSpeedField = $('motor-speed-field');
+    const $timeline = $('timeline');
+    const $timelineSail = $('timeline-sail');
+    const $timelineMotor = $('timeline-motor');
+    const $timelineLegend = $('timeline-legend');
 
-    // --- Initialize form with defaults ---
+    // --- Initialize form ---
     function applyDefaults() {
         $startTime.value = settings.defaultStartTime;
         $arrivalTime.value = settings.defaultArrivalTime;
@@ -327,10 +424,20 @@
         $distanceLabel.textContent = `Afstand (${distUnit})`;
         $sailSpeedLabel.textContent = `Zeilsnelheid (${speedUnit})`;
         $motorSpeedLabel.textContent = `Motorsnelheid (${speedUnit})`;
-        // Settings dialog labels
-        document.getElementById('s-max-distance-label').textContent = `Maximale afstand (${distUnit})`;
-        document.getElementById('s-max-sail-label').textContent = `Maximale zeilsnelheid (${speedUnit})`;
-        document.getElementById('s-max-motor-label').textContent = `Maximale motorsnelheid (${speedUnit})`;
+        $('s-max-distance-label').textContent = `Maximale afstand (${distUnit})`;
+        $('s-max-sail-label').textContent = `Maximale zeilsnelheid (${speedUnit})`;
+        $('s-max-motor-label').textContent = `Maximale motorsnelheid (${speedUnit})`;
+    }
+
+    // (#20) Set or clear an error on a field
+    function setFieldError(fieldEl, errorEl, msg) {
+        if (msg) {
+            errorEl.textContent = msg;
+            fieldEl.classList.add('has-error');
+        } else {
+            errorEl.textContent = '';
+            fieldEl.classList.remove('has-error');
+        }
     }
 
     function runCalculation() {
@@ -340,100 +447,195 @@
         const sailSpeed = parseFloat($sailSpeed.value);
         const motorSpeed = parseFloat($motorSpeed.value);
         const fuelCons = parseFloat($fuelConsumption.value);
+        const metric = $useMetric.checked;
+        const distUnit = metric ? 'km' : 'zeemijl';
+        const speedUnit = metric ? 'km/u' : 'knopen';
 
         if (!startTime || !arrivalTime || isNaN(distance) || isNaN(sailSpeed) || isNaN(motorSpeed) || isNaN(fuelCons)) {
             $resultCard.style.display = 'none';
             return;
         }
 
-        // Validate motor speed
-        const motorErr = validate_motor_speed(sailSpeed, motorSpeed);
-        if (motorErr) {
-            $motorSpeedError.textContent = motorErr;
-            $motorSpeedField.classList.add('has-error');
+        // (#6/#20) Validate max values with inline errors
+        let hasError = false;
+
+        const distErr = validate_max(distance, settings.maxDistance, 'Afstand', distUnit);
+        setFieldError($distanceField, $distanceError, distErr);
+        if (distErr) hasError = true;
+
+        const sailErr = validate_max(sailSpeed, settings.maxSailSpeed, 'Zeilsnelheid', speedUnit);
+        setFieldError($sailSpeedField, $sailSpeedError, sailErr);
+        if (sailErr) hasError = true;
+
+        // Motor speed: check max AND > sail speed
+        let motorErr = validate_max(motorSpeed, settings.maxMotorSpeed, 'Motorsnelheid', speedUnit);
+        if (!motorErr) motorErr = validate_motor_speed(sailSpeed, motorSpeed);
+        setFieldError($motorSpeedField, $motorSpeedError, motorErr);
+        if (motorErr) hasError = true;
+
+        if (hasError) {
             $resultCard.style.display = 'none';
             return;
-        } else {
-            $motorSpeedError.textContent = '';
-            $motorSpeedField.classList.remove('has-error');
         }
 
-        // Check next-day
+        // (#3) Reset isNextDay when times change — handled in time input listeners
+
+        // (#4) Check next-day only with strict less-than
         if (!isNextDay && needs_next_day(startTime, arrivalTime)) {
-            document.getElementById('nextday-dialog').classList.add('active');
+            $('nextday-dialog').classList.add('active');
             return;
         }
 
         const result = calculate(
             startTime, arrivalTime, distance, sailSpeed, motorSpeed,
-            fuelCons, $useMetric.checked, isNextDay
+            fuelCons, metric, isNextDay
         );
 
-        if (result.scenario === 'error') {
+        if (result.scenario === SCENARIO_ERROR) {
             $resultCard.style.display = 'none';
             return;
         }
 
         $resultText.innerHTML = result.result_html;
         $resultCard.style.display = '';
+
+        // (#19) Visual timeline
+        const sf = result.sail_fraction;
+        const mf = result.motor_fraction;
+        if (sf > 0 || mf > 0) {
+            const total = sf + mf;
+            const sailPct = Math.round((sf / total) * 100);
+            const motorPct = 100 - sailPct;
+            $timelineSail.style.width = `${sailPct}%`;
+            $timelineSail.textContent = sailPct > 15 ? `${sailPct}%` : '';
+            $timelineMotor.style.width = `${motorPct}%`;
+            $timelineMotor.textContent = motorPct > 15 ? `${motorPct}%` : '';
+            $timeline.style.display = 'flex';
+            $timelineLegend.style.display = 'flex';
+        } else {
+            $timeline.style.display = 'none';
+            $timelineLegend.style.display = 'none';
+        }
     }
 
     // --- Event listeners ---
-    [$startTime, $arrivalTime, $distance, $sailSpeed, $motorSpeed, $fuelConsumption].forEach(el => {
-        el.addEventListener('input', () => { runCalculation(); });
+    [$distance, $sailSpeed, $motorSpeed, $fuelConsumption].forEach(el => {
+        el.addEventListener('input', runCalculation);
     });
 
+    // (#3) Reset isNextDay when time inputs change
+    $startTime.addEventListener('input', () => { isNextDay = false; runCalculation(); });
+    $arrivalTime.addEventListener('input', () => { isNextDay = false; runCalculation(); });
+
+    // (#8) Convert existing values when toggling metric/nautisch
     $useMetric.addEventListener('change', () => {
+        const wasMetric = settings.useMetric;
+        const nowMetric = $useMetric.checked;
+        settings.useMetric = nowMetric;
+        saveSettings();
+
+        if (wasMetric !== nowMetric) {
+            const dist = parseFloat($distance.value);
+            const sail = parseFloat($sailSpeed.value);
+            const motor = parseFloat($motorSpeed.value);
+            if (nowMetric && !isNaN(dist)) $distance.value = (dist * KM_PER_NM).toFixed(1);
+            if (nowMetric && !isNaN(sail)) $sailSpeed.value = (sail * KM_PER_NM).toFixed(1);
+            if (nowMetric && !isNaN(motor)) $motorSpeed.value = (motor * KM_PER_NM).toFixed(1);
+            if (!nowMetric && !isNaN(dist)) $distance.value = (dist / KM_PER_NM).toFixed(1);
+            if (!nowMetric && !isNaN(sail)) $sailSpeed.value = (sail / KM_PER_NM).toFixed(1);
+            if (!nowMetric && !isNaN(motor)) $motorSpeed.value = (motor / KM_PER_NM).toFixed(1);
+        }
+
         updateLabels();
         runCalculation();
     });
 
-    // Next-day dialog
-    document.getElementById('btn-correct').addEventListener('click', () => {
+    // (#18) Share / copy result
+    $('share-btn').addEventListener('click', async () => {
+        const text = $resultText.innerText;
+        try {
+            await navigator.clipboard.writeText(text);
+            const msg = $('copied-msg');
+            msg.classList.add('show');
+            setTimeout(() => msg.classList.remove('show'), 2000);
+        } catch {}
+    });
+
+    // --- Next-day dialog ---
+    $('btn-correct').addEventListener('click', () => {
         $arrivalTime.value = '';
         isNextDay = false;
-        document.getElementById('nextday-dialog').classList.remove('active');
+        closeDialog('nextday-dialog');
     });
-    document.getElementById('btn-nextday').addEventListener('click', () => {
+    $('btn-nextday').addEventListener('click', () => {
         isNextDay = true;
-        document.getElementById('nextday-dialog').classList.remove('active');
+        closeDialog('nextday-dialog');
         runCalculation();
     });
 
-    // Settings dialog
-    document.getElementById('open-settings').addEventListener('click', () => {
-        document.getElementById('s-default-start').value = settings.defaultStartTime;
-        document.getElementById('s-default-arrival').value = settings.defaultArrivalTime;
-        document.getElementById('s-default-distance').value = settings.defaultDistance;
-        document.getElementById('s-default-sail').value = settings.defaultSailSpeed;
-        document.getElementById('s-default-motor').value = settings.defaultMotorSpeed;
-        document.getElementById('s-fuel').value = settings.fuelConsumption;
-        document.getElementById('s-max-distance').value = settings.maxDistance;
-        document.getElementById('s-max-sail').value = settings.maxSailSpeed;
-        document.getElementById('s-max-motor').value = settings.maxMotorSpeed;
-        document.getElementById('settings-dialog').classList.add('active');
+    // --- Settings dialog ---
+    $('open-settings').addEventListener('click', () => {
+        $('s-default-start').value = settings.defaultStartTime;
+        $('s-default-arrival').value = settings.defaultArrivalTime;
+        $('s-default-distance').value = settings.defaultDistance;
+        $('s-default-sail').value = settings.defaultSailSpeed;
+        $('s-default-motor').value = settings.defaultMotorSpeed;
+        $('s-fuel').value = settings.fuelConsumption;
+        $('s-max-distance').value = settings.maxDistance;
+        $('s-max-sail').value = settings.maxSailSpeed;
+        $('s-max-motor').value = settings.maxMotorSpeed;
+        $('s-use-metric').checked = settings.useMetric;
+        $('s-unit-label').textContent = settings.useMetric ? 'Metrisch (km, km/u)' : 'Nautisch (zeemijl, knopen)';
+        openDialog('settings-dialog');
     });
-    document.getElementById('settings-cancel').addEventListener('click', () => {
-        document.getElementById('settings-dialog').classList.remove('active');
+
+    // Settings dialog metric toggle label
+    $('s-use-metric').addEventListener('change', () => {
+        $('s-unit-label').textContent = $('s-use-metric').checked ? 'Metrisch (km, km/u)' : 'Nautisch (zeemijl, knopen)';
     });
-    document.getElementById('settings-save').addEventListener('click', () => {
-        settings.defaultStartTime = document.getElementById('s-default-start').value;
-        settings.defaultArrivalTime = document.getElementById('s-default-arrival').value;
-        settings.defaultDistance = parseFloat(document.getElementById('s-default-distance').value);
-        settings.defaultSailSpeed = parseFloat(document.getElementById('s-default-sail').value);
-        settings.defaultMotorSpeed = parseFloat(document.getElementById('s-default-motor').value);
-        settings.fuelConsumption = parseFloat(document.getElementById('s-fuel').value);
-        settings.maxDistance = parseFloat(document.getElementById('s-max-distance').value);
-        settings.maxSailSpeed = parseFloat(document.getElementById('s-max-sail').value);
-        settings.maxMotorSpeed = parseFloat(document.getElementById('s-max-motor').value);
-        document.getElementById('settings-dialog').classList.remove('active');
+
+    $('settings-cancel').addEventListener('click', () => closeDialog('settings-dialog'));
+    $('settings-save').addEventListener('click', () => {
+        settings.defaultStartTime = $('s-default-start').value;
+        settings.defaultArrivalTime = $('s-default-arrival').value;
+        settings.defaultDistance = parseFloat($('s-default-distance').value);
+        settings.defaultSailSpeed = parseFloat($('s-default-sail').value);
+        settings.defaultMotorSpeed = parseFloat($('s-default-motor').value);
+        settings.fuelConsumption = parseFloat($('s-fuel').value);
+        settings.maxDistance = parseFloat($('s-max-distance').value);
+        settings.maxSailSpeed = parseFloat($('s-max-sail').value);
+        settings.maxMotorSpeed = parseFloat($('s-max-motor').value);
+        settings.useMetric = $('s-use-metric').checked;
+        saveSettings();
+        closeDialog('settings-dialog');
         applyDefaults();
         runCalculation();
+    });
+
+    // (#12/#13) Close dialogs on backdrop click and Escape key
+    function openDialog(id) { $(id).classList.add('active'); }
+    function closeDialog(id) { $(id).classList.remove('active'); }
+
+    document.querySelectorAll('.dialog-overlay').forEach(overlay => {
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay) overlay.classList.remove('active');
+        });
+    });
+
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            document.querySelectorAll('.dialog-overlay.active').forEach(d => d.classList.remove('active'));
+        }
     });
 
     // --- Init ---
     applyDefaults();
     runCalculation();
+
+    // (#17) Register service worker for offline/PWA
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js').catch(() => {});
+    }
 </script>
 
 </body>
