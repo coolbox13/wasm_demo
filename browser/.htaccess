@@ -1,0 +1,40 @@
+# Enable rewrite engine
+RewriteEngine On
+
+# Redirect everything to HTTPS
+RewriteCond %{HTTPS} !=on
+RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+# SPA routing: If the requested file or directory doesn't exist, route to index.html
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^ index.html [L]
+
+# WASM MIME type
+AddType application/wasm .wasm
+
+# Cache control for specific file types
+<FilesMatch "\.(ico|png)$">
+    Header set Cache-Control "max-age=0, no-cache, no-store, must-revalidate"
+</FilesMatch>
+
+# Cache WASM and JS glue (safe to cache, filenames are versioned)
+<FilesMatch "\.(wasm|js)$">
+    Header set Cache-Control "max-age=31536000, immutable"
+</FilesMatch>
+
+# Allow CORS for all origins
+<IfModule mod_headers.c>
+    Header always set Access-Control-Allow-Origin "*"
+    Header always set Access-Control-Allow-Methods "GET, POST, OPTIONS, DELETE, PUT"
+    Header always set Access-Control-Allow-Headers "Content-Type, Authorization"
+</IfModule>
+
+# Prevent directory listing
+Options -Indexes
+
+# Set default character set
+AddDefaultCharset UTF-8
+
+# Disable server signature
+ServerSignature Off
