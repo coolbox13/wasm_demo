@@ -4,26 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [lib]
-# Same as Spin: "cdylib" means "C-compatible dynamic library"
-# For Spin, this produces a WASI component
-# For browser, this produces a JS-loadable WASM module
-# Same crate-type, completely different output!
 crate-type = ["cdylib"]
 
 [dependencies]
-# Instead of spin-sdk, we use wasm-bindgen.
-# This is the "glue" that lets JavaScript call Rust functions
-# and vice versa. It generates the JS wrapper code automatically.
 wasm-bindgen = "0.2"
-
-# web-sys gives us access to browser APIs (DOM, console, fetch, etc.)
-# Each API must be explicitly enabled as a feature — no bloat!
-[dependencies.web-sys]
-version = "0.3"
-features = [
-    "Document",
-    "Element",
-    "HtmlElement",
-    "Window",
-    "console",
-]
