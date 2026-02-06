@@ -1,0 +1,37 @@
+#:schema https://schemas.spinframework.dev/spin/manifest-v2/latest.json
+
+spin_manifest_version = 2
+
+[application]
+name = "wasm"
+version = "0.1.0"
+authors = ["Your Name <you@example.com>"]
+description = "WASM learning project: server-side Spin + browser-side WASM"
+
+# --- Component 1: Server-side API handler (your Rust code running on the server) ---
+# This is the original Spin component. It handles /api requests.
+
+[[trigger.http]]
+route = "/api/..."
+component = "wasm-api"
+
+[component.wasm-api]
+source = "target/wasm32-wasip1/release/wasm.wasm"
+allowed_outbound_hosts = []
+
+[component.wasm-api.build]
+command = "cargo build --target wasm32-wasip1 --release"
+watch = ["src/**/*.rs", "Cargo.toml"]
+
+# --- Component 2: Static file server (serves browser WASM + HTML) ---
+# This uses a pre-built Spin component that serves files from a directory.
+# It serves index.html, the .wasm file, and the JS glue — everything the
+# browser needs to run client-side WASM.
+
+[[trigger.http]]
+route = "/..."
+component = "browser-files"
+
+[component.browser-files]
+source = "spin_static_fs.wasm"
+files = [{ source = "browser/dist", destination = "/" }]
