@@ -3,31 +3,50 @@ use wasm_bindgen::prelude::*;
 /// Result of the sail-or-motor calculation.
 #[wasm_bindgen]
 pub struct SailResult {
-    /// Which scenario: "sail_only", "sail_and_motor", "motor_only", "motor_late"
-    scenario: String,
-    /// Formatted result text (HTML)
+    // Using numeric scenario codes to avoid string allocations (#9)
+    // 0=error, 1=sail_only, 2=sail_and_motor, 3=motor_only, 4=motor_late
+    scenario: u8,
     result_html: String,
+    // Structured data for the visual timeline (#19)
+    sail_fraction: f64,
+    motor_fraction: f64,
 }
 
 #[wasm_bindgen]
 impl SailResult {
     #[wasm_bindgen(getter)]
-    pub fn scenario(&self) -> String {
-        self.scenario.clone()
+    pub fn scenario(&self) -> u8 {
+        self.scenario
     }
     #[wasm_bindgen(getter)]
     pub fn result_html(&self) -> String {
         self.result_html.clone()
     }
+    #[wasm_bindgen(getter)]
+    pub fn sail_fraction(&self) -> f64 {
+        self.sail_fraction
+    }
+    #[wasm_bindgen(getter)]
+    pub fn motor_fraction(&self) -> f64 {
+        self.motor_fraction
+    }
 }
 
+const SCENARIO_ERROR: u8 = 0;
+const SCENARIO_SAIL_ONLY: u8 = 1;
+const SCENARIO_SAIL_AND_MOTOR: u8 = 2;
+const SCENARIO_MOTOR_ONLY: u8 = 3;
+const SCENARIO_MOTOR_LATE: u8 = 4;
+
+/// Format hours as "X uur en Y minuten", handling the 60-minute rollover (#1)
 fn format_time(hours: f64) -> String {
-    let whole_hours = hours.floor() as u32;
-    let minutes = ((hours - hours.floor()) * 60.0).round() as u32;
-    if minutes > 0 {
-        format!("{} uur en {} minuten", whole_hours, minutes)
+    let total_minutes = (hours * 60.0).round() as u32;
+    let h = total_minutes / 60;
+    let m = total_minutes % 60;
+    if m > 0 {
+        format!("{} uur en {} minuten", h, m)
     } else {
-        format!("{} uur", whole_hours)
+        format!("{} uur", h)
     }
 }
 
@@ -37,7 +56,7 @@ fn format_clock(total_minutes: i32) -> String {
     format!("{:02}:{:02}", h, m)
 }
 
-/// Core calculation matching the Vue SailingCalculator.vue logic exactly.
+/// Core calculation matching the Vue SailingCalculator.vue logic.
 ///
 /// Parameters:
 /// - start_time, arrival_time: "HH:MM" strings
@@ -45,9 +64,8 @@ fn format_clock(total_minutes: i32) -> String {
 /// - sail_speed: in current unit (knopen or km/u)
 /// - motor_speed: in current unit (knopen or km/u)
 /// - fuel_consumption: liters per hour
-/// - use_metric: if true, convert km→zeemijl internally
+/// - use_metric: if true, convert km to zeemijl internally
 /// - is_next_day: if true, add 24h to total time
-/// - unit_label: "zeemijl" or "km"
 #[wasm_bindgen]
 pub fn calculate(
     start_time: &str,
@@ -69,6 +87,20 @@ pub fn calculate(
         None => return error_result("Ongeldige aankomsttijd."),
     };
 
+    // Validate inputs (#5): prevent zero/negative causing division by zero
+    if distance <= 0.0 {
+        return error_result("Afstand moet groter zijn dan 0.");
+    }
+    if sail_speed <= 0.0 {
+        return error_result("Zeilsnelheid moet groter zijn dan 0.");
+    }
+    if motor_speed <= 0.0 {
+        return error_result("Motorsnelheid moet groter zijn dan 0.");
+    }
+    if motor_speed <= sail_speed {
+        return error_result("Motorsnelheid moet groter zijn dan zeilsnelheid.");
+    }
+
     // Total time in hours
     let mut diff_mins = arrival_mins - start_mins;
     if is_next_day {
@@ -89,22 +121,23 @@ pub fn calculate(
 
     let unit = if use_metric { "km" } else { "zeemijl" };
 
-    // Display values in original units
-    let dist_display = distance;
-
     // Step 1: Can sailing alone cover the distance?
     let sail_time_limit = dist / s_speed;
     if sail_time_limit <= total_time {
+        // Convert back for display
+        let dist_display = if use_metric { dist * 1.852 } else { dist };
         let html = format!(
             "Je kunt de hele afstand zeilen in {} ({:.2} {}).\
-            <br>Geschat brandstofverbruik: 0 liter.",
+             <br>Geschat brandstofverbruik: 0 liter.",
             format_time(sail_time_limit),
             dist_display,
             unit
         );
         return SailResult {
-            scenario: "sail_only".to_string(),
+            scenario: SCENARIO_SAIL_ONLY,
             result_html: html,
+            sail_fraction: 1.0,
+            motor_fraction: 0.0,
         };
     }
 
@@ -128,22 +161,31 @@ pub fn calculate(
             (distance_sailed, remaining_distance)
         };
 
+        // Changeover clock time (#11)
+        let changeover_clock_mins = start_mins + (changeover_point * 60.0).round() as i32;
+        let changeover_clock = format_clock(changeover_clock_mins);
+
+        // (#10): proper spacing between sentences
         let html = format!(
-            "Je kunt {} zeilen ({:.2} {}).\
-            Daarna moet je overschakelen naar de motor voor de resterende {:.2} {},\
-            wat {} duurt.\
-            <br><br>Geschat brandstofverbruik: {:.2} liter.",
+            "Je kunt {} zeilen ({:.2} {}). \
+             Daarna moet je overschakelen naar de motor voor de resterende {:.2} {}, \
+             wat {} duurt.\
+             <br>Start de motor om <strong>{}</strong>.\
+             <br><br>Geschat brandstofverbruik: {:.2} liter.",
             format_time(changeover_point),
             sailed_display,
             unit,
             remaining_display,
             unit,
             format_time(motoring_time),
+            changeover_clock,
             fuel
         );
         return SailResult {
-            scenario: "sail_and_motor".to_string(),
+            scenario: SCENARIO_SAIL_AND_MOTOR,
             result_html: html,
+            sail_fraction: changeover_point / total_time,
+            motor_fraction: motoring_time / total_time,
         };
     }
 
@@ -151,20 +193,21 @@ pub fn calculate(
     let time_to_motor_full = dist / m_speed;
     if time_to_motor_full > total_time {
         // Can't arrive on time
-        let extra_time = time_to_motor_full - total_time;
-        let actual_arrival_mins = start_mins + ((total_time + extra_time) * 60.0) as i32;
+        let actual_arrival_mins = start_mins + (time_to_motor_full * 60.0).round() as i32;
         let fuel = time_to_motor_full * fuel_consumption;
 
         let html = format!(
-            "Je kunt de hele afstand op de motor afleggen, maar je zult niet op tijd aankomen.\
-            <br>Je verwachte aankomsttijd is {}.\
-            <br><br>Geschat brandstofverbruik: {:.2} liter.",
+            "Je kunt de hele afstand op de motor afleggen, maar je zult niet op tijd aankomen. \
+             <br>Je verwachte aankomsttijd is <strong>{}</strong>.\
+             <br><br>Geschat brandstofverbruik: {:.2} liter.",
             format_clock(actual_arrival_mins),
             fuel
         );
         return SailResult {
-            scenario: "motor_late".to_string(),
+            scenario: SCENARIO_MOTOR_LATE,
             result_html: html,
+            sail_fraction: 0.0,
+            motor_fraction: 1.0,
         };
     }
 
@@ -172,19 +215,24 @@ pub fn calculate(
     let fuel = time_to_motor_full * fuel_consumption;
     let html = format!(
         "Je kunt de hele afstand op de motor afleggen in {}.\
-        <br><br>Geschat brandstofverbruik: {:.2} liter.",
+         <br><br>Geschat brandstofverbruik: {:.2} liter.",
         format_time(time_to_motor_full),
         fuel
     );
     SailResult {
-        scenario: "motor_only".to_string(),
+        scenario: SCENARIO_MOTOR_ONLY,
         result_html: html,
+        sail_fraction: 0.0,
+        motor_fraction: time_to_motor_full / total_time,
     }
 }
 
-/// Validate that motor speed > sail speed. Returns error message or empty string.
+/// Validate motor speed > sail speed. Returns error message or empty string.
 #[wasm_bindgen]
 pub fn validate_motor_speed(sail_speed: f64, motor_speed: f64) -> String {
+    if sail_speed <= 0.0 || motor_speed <= 0.0 {
+        return String::new(); // Don't show cross-field error while still typing
+    }
     if motor_speed <= sail_speed {
         "Motorsnelheid moet groter zijn dan zeilsnelheid".to_string()
     } else {
@@ -193,11 +241,28 @@ pub fn validate_motor_speed(sail_speed: f64, motor_speed: f64) -> String {
 }
 
 /// Check if arrival is before start (needs next-day dialog).
+/// Only triggers when both times are fully entered and arrival is strictly before start (#4).
 #[wasm_bindgen]
 pub fn needs_next_day(start_time: &str, arrival_time: &str) -> bool {
-    let start = parse_time(start_time).unwrap_or(0);
-    let arrival = parse_time(arrival_time).unwrap_or(0);
-    arrival <= start
+    let start = match parse_time(start_time) {
+        Some(m) => m,
+        None => return false,
+    };
+    let arrival = match parse_time(arrival_time) {
+        Some(m) => m,
+        None => return false,
+    };
+    arrival < start
+}
+
+/// Validate a numeric field against a max value. Returns error message or empty string (#6).
+#[wasm_bindgen]
+pub fn validate_max(value: f64, max: f64, field_name: &str, unit: &str) -> String {
+    if value > max {
+        format!("{} moet kleiner zijn dan {} {}", field_name, max, unit)
+    } else {
+        String::new()
+    }
 }
 
 fn parse_time(time_str: &str) -> Option<u32> {
@@ -215,7 +280,9 @@ fn parse_time(time_str: &str) -> Option<u32> {
 
 fn error_result(msg: &str) -> SailResult {
     SailResult {
-        scenario: "error".to_string(),
+        scenario: SCENARIO_ERROR,
         result_html: msg.to_string(),
+        sail_fraction: 0.0,
+        motor_fraction: 0.0,
     }
 }
