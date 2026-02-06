@@ -1,97 +1,440 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="nl">
 <head>
     <meta charset="UTF-8">
-    <title>Browser WASM — Rust in Your Browser</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SailingCalculator</title>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500&display=swap">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
     <style>
-        body { font-family: system-ui; max-width: 700px; margin: 40px auto; padding: 0 20px; }
-        h1 { color: #333; }
-        button { padding: 8px 16px; margin: 4px; cursor: pointer; border-radius: 4px; border: 1px solid #ccc; }
-        button:hover { background: #f0f0f0; }
-        #output { margin-top: 20px; }
-        .comparison { background: #f5f5f5; padding: 16px; border-radius: 8px; margin: 16px 0; font-size: 14px; }
-        .comparison code { background: #e0e0e0; padding: 2px 6px; border-radius: 3px; }
-        input { padding: 8px; border: 1px solid #ccc; border-radius: 4px; width: 200px; }
+        *, *::before, *::after { box-sizing: border-box; }
+        body { margin: 0; font-family: 'Roboto', sans-serif; background: #fff; color: rgba(0,0,0,.87); }
+
+        .container { max-width: 600px; margin: 0 auto; padding: 16px; }
+
+        /* Card */
+        .card {
+            background: #fff;
+            border-radius: 4px;
+            box-shadow: 0 2px 1px -1px rgba(0,0,0,.2), 0 1px 1px 0 rgba(0,0,0,.14), 0 1px 3px 0 rgba(0,0,0,.12);
+            margin-bottom: 16px;
+            overflow: hidden;
+        }
+        .card-title {
+            font-size: 2.125rem;
+            font-weight: 400;
+            line-height: 2.5rem;
+            padding: 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .card-text { padding: 0 16px 16px; }
+
+        /* Icon button */
+        .icon-btn {
+            background: none; border: none; cursor: pointer;
+            width: 40px; height: 40px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            color: rgba(0,0,0,.54);
+        }
+        .icon-btn:hover { background: rgba(0,0,0,.04); }
+
+        /* Switch / toggle */
+        .switch-row {
+            display: flex; align-items: center; padding: 8px 0; gap: 12px;
+        }
+        .switch {
+            position: relative; width: 40px; height: 20px; flex-shrink: 0;
+        }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .switch .slider {
+            position: absolute; inset: 0; background: #9e9e9e; border-radius: 10px;
+            transition: .3s; cursor: pointer;
+        }
+        .switch .slider::before {
+            content: ''; position: absolute; width: 16px; height: 16px;
+            left: 2px; top: 2px; background: #fff; border-radius: 50%;
+            transition: .3s;
+        }
+        .switch input:checked + .slider { background: #1976d2; }
+        .switch input:checked + .slider::before { transform: translateX(20px); }
+        .switch-label { font-size: 0.875rem; color: rgba(0,0,0,.6); cursor: pointer; }
+
+        /* Text field (material floating label) */
+        .text-field {
+            position: relative; margin-bottom: 20px;
+        }
+        .text-field input {
+            width: 100%; padding: 20px 12px 6px; font-size: 1rem;
+            border: 1px solid rgba(0,0,0,.42); border-radius: 4px;
+            background: transparent; outline: none;
+            font-family: 'Roboto', sans-serif;
+        }
+        .text-field input:focus { border-color: #1976d2; border-width: 2px; padding: 19px 11px 5px; }
+        .text-field label {
+            position: absolute; left: 12px; top: 14px;
+            font-size: 1rem; color: rgba(0,0,0,.6);
+            pointer-events: none; transition: .2s;
+            background: #fff; padding: 0 4px;
+        }
+        .text-field input:focus + label,
+        .text-field input:not(:placeholder-shown) + label {
+            top: -8px; font-size: 0.75rem; color: #1976d2;
+        }
+        .text-field input:not(:focus):not(:placeholder-shown) + label {
+            color: rgba(0,0,0,.6);
+        }
+        .text-field .error-msg {
+            font-size: 0.75rem; color: #b00020; margin-top: 4px; min-height: 16px;
+        }
+        .text-field.has-error input { border-color: #b00020; }
+        .text-field.has-error label { color: #b00020; }
+
+        /* Two-column grid */
+        .row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+        @media (max-width: 480px) { .row { grid-template-columns: 1fr; } }
+
+        /* Result card title */
+        .result-title {
+            font-size: 1.5rem; font-weight: 400; padding: 16px;
+        }
+        .result-text { padding: 0 16px 16px; font-size: 1rem; line-height: 1.6; }
+
+        /* Dialog overlay */
+        .dialog-overlay {
+            display: none; position: fixed; inset: 0;
+            background: rgba(0,0,0,.5); z-index: 100;
+            align-items: center; justify-content: center;
+        }
+        .dialog-overlay.active { display: flex; }
+        .dialog {
+            background: #fff; border-radius: 4px; max-width: 500px; width: 90%;
+            box-shadow: 0 11px 15px -7px rgba(0,0,0,.2), 0 24px 38px 3px rgba(0,0,0,.14), 0 9px 46px 8px rgba(0,0,0,.12);
+        }
+        .dialog-title { font-size: 1.25rem; font-weight: 500; padding: 16px 24px 8px; }
+        .dialog-text { padding: 0 24px 16px; color: rgba(0,0,0,.6); }
+        .dialog-actions { padding: 8px; display: flex; justify-content: flex-end; gap: 8px; }
+        .dialog-actions button {
+            background: none; border: none; cursor: pointer;
+            padding: 8px 16px; font-size: 0.875rem; font-weight: 500;
+            border-radius: 4px; text-transform: uppercase; letter-spacing: 0.5px;
+        }
+        .btn-primary { color: #1976d2; }
+        .btn-secondary { color: rgba(0,0,0,.6); }
+        .btn-primary:hover, .btn-secondary:hover { background: rgba(0,0,0,.04); }
+
+        /* Settings dialog fields */
+        .settings-section { margin-bottom: 12px; }
+        .settings-section .text-field { margin-bottom: 12px; }
+        .dialog-form { padding: 0 24px; }
+        .dialog-form .text-field input { font-size: 0.875rem; padding: 16px 12px 4px; }
+        .dialog-form .text-field input:focus { padding: 15px 11px 3px; }
+        .dialog-form .text-field label { top: 10px; font-size: 0.875rem; }
+        .dialog-form .text-field input:focus + label,
+        .dialog-form .text-field input:not(:placeholder-shown) + label { top: -8px; font-size: 0.7rem; }
     </style>
 </head>
 <body>
-    <h1>WASM: Browser vs Server</h1>
 
-    <div class="comparison">
-        <strong>What's happening here:</strong><br>
-        This HTML page was <em>served</em> by your <code>Spin</code> server (server-side WASM).<br>
-        The interactive parts below run <code>Rust → WASM</code> directly in your browser (client-side WASM).<br>
-        Same language (Rust), same output format (.wasm), completely different runtimes!
+<div class="container">
+    <!-- Main Calculator Card -->
+    <div class="card">
+        <div class="card-title">
+            Zeilen of Motoren
+            <button class="icon-btn" id="open-settings" title="Instellingen">
+                <span class="material-icons">settings</span>
+            </button>
+        </div>
+        <div class="card-text">
+            <!-- Nautisch / Metrisch toggle -->
+            <div class="switch-row">
+                <label class="switch">
+                    <input type="checkbox" id="use-metric">
+                    <span class="slider"></span>
+                </label>
+                <span class="switch-label" id="unit-label">Nautisch (zeemijl, knopen)</span>
+            </div>
+
+            <!-- Time inputs row -->
+            <div class="row">
+                <div class="text-field">
+                    <input type="time" id="start-time" placeholder=" ">
+                    <label for="start-time">Starttijd</label>
+                </div>
+                <div class="text-field">
+                    <input type="time" id="arrival-time" placeholder=" ">
+                    <label for="arrival-time">Gewenste aankomsttijd</label>
+                </div>
+            </div>
+
+            <!-- Distance and fuel row -->
+            <div class="row">
+                <div class="text-field">
+                    <input type="number" id="distance" placeholder=" " min="0">
+                    <label for="distance" id="distance-label">Afstand (zeemijl)</label>
+                </div>
+                <div class="text-field">
+                    <input type="number" id="fuel-consumption" placeholder=" " min="0" step="0.1">
+                    <label for="fuel-consumption">Brandstofverbruik (liter/uur)</label>
+                </div>
+            </div>
+
+            <!-- Speed row -->
+            <div class="row">
+                <div class="text-field" id="sail-speed-field">
+                    <input type="number" id="sail-speed" placeholder=" " min="0">
+                    <label for="sail-speed" id="sail-speed-label">Zeilsnelheid (knopen)</label>
+                    <div class="error-msg" id="sail-speed-error"></div>
+                </div>
+                <div class="text-field" id="motor-speed-field">
+                    <input type="number" id="motor-speed" placeholder=" " min="0">
+                    <label for="motor-speed" id="motor-speed-label">Motorsnelheid (knopen)</label>
+                    <div class="error-msg" id="motor-speed-error"></div>
+                </div>
+            </div>
+        </div>
     </div>
 
-    <h2>1. Call Rust from JavaScript</h2>
-    <p>Type a name and Rust's <code>greet()</code> function runs in your browser:</p>
-    <input type="text" id="name-input" value="Human" placeholder="Enter a name">
-    <button onclick="callGreet()">Greet (returns String to JS)</button>
-    <button onclick="callAddToPage()">Greet (Rust modifies DOM directly)</button>
+    <!-- Result Card -->
+    <div class="card" id="result-card" style="display:none;">
+        <div class="result-title">Uitkomst</div>
+        <div class="result-text" id="result-text"></div>
+    </div>
+</div>
 
-    <h2>2. CPU-heavy work in WASM</h2>
-    <p>Fibonacci computed by Rust at near-native speed:</p>
-    <button onclick="callFib(10)">fib(10)</button>
-    <button onclick="callFib(50)">fib(50)</button>
-    <button onclick="callFib(90)">fib(90)</button>
+<!-- Next-Day Dialog -->
+<div class="dialog-overlay" id="nextday-dialog">
+    <div class="dialog">
+        <div class="dialog-title">Let op</div>
+        <div class="dialog-text">Aankomsttijd is eerder dan of gelijk aan starttijd. Is dit bedoeld voor de volgende dag?</div>
+        <div class="dialog-actions">
+            <button class="btn-primary" id="btn-correct">Corrigeer tijd</button>
+            <button class="btn-secondary" id="btn-nextday">Volgende dag</button>
+        </div>
+    </div>
+</div>
 
-    <h2>3. Compare: call the Spin server</h2>
-    <p>This calls your <em>server-side</em> WASM via HTTP (same Rust, different runtime):</p>
-    <button onclick="callServer()">Fetch from Spin server</button>
+<!-- Settings Dialog -->
+<div class="dialog-overlay" id="settings-dialog">
+    <div class="dialog">
+        <div class="dialog-title">Instellingen</div>
+        <div class="dialog-form">
+            <div class="text-field">
+                <input type="time" id="s-default-start" placeholder=" ">
+                <label>Standaard starttijd</label>
+            </div>
+            <div class="text-field">
+                <input type="time" id="s-default-arrival" placeholder=" ">
+                <label>Standaard aankomsttijd</label>
+            </div>
+            <div class="text-field">
+                <input type="number" id="s-default-distance" placeholder=" ">
+                <label>Standaard afstand</label>
+            </div>
+            <div class="text-field">
+                <input type="number" id="s-default-sail" placeholder=" ">
+                <label>Standaard zeilsnelheid</label>
+            </div>
+            <div class="text-field">
+                <input type="number" id="s-default-motor" placeholder=" ">
+                <label>Standaard motorsnelheid</label>
+            </div>
+            <div class="text-field">
+                <input type="number" id="s-fuel" placeholder=" " step="0.1">
+                <label>Brandstofverbruik (liter per uur)</label>
+            </div>
+            <div class="text-field">
+                <input type="number" id="s-max-distance" placeholder=" ">
+                <label id="s-max-distance-label">Maximale afstand (zeemijl)</label>
+            </div>
+            <div class="text-field">
+                <input type="number" id="s-max-sail" placeholder=" ">
+                <label id="s-max-sail-label">Maximale zeilsnelheid (knopen)</label>
+            </div>
+            <div class="text-field">
+                <input type="number" id="s-max-motor" placeholder=" ">
+                <label id="s-max-motor-label">Maximale motorsnelheid (knopen)</label>
+            </div>
+        </div>
+        <div class="dialog-actions">
+            <button class="btn-secondary" id="settings-cancel">Annuleren</button>
+            <button class="btn-primary" id="settings-save">Opslaan</button>
+        </div>
+    </div>
+</div>
 
-    <div id="output"></div>
+<script type="module">
+    import init, { calculate, validate_motor_speed, needs_next_day } from './pkg/wasm_browser.js';
 
-    <!--
-        Loading WASM in the browser requires an async init step.
-        wasm-pack generates a JS wrapper ("wasm_browser.js") that handles this.
-        The .wasm file is fetched, compiled, and instantiated by the browser engine.
-    -->
-    <script type="module">
-        // Import the JS glue generated by wasm-pack
-        import init, { greet, add_greeting_to_page, log_to_console, fibonacci } from './pkg/wasm_browser.js';
+    await init();
 
-        // Initialize the WASM module (downloads + compiles the .wasm file)
-        const wasm = await init();
+    // --- Settings (matching Vue defaults) ---
+    const now = new Date();
+    const startH = now.getHours();
+    const startM = now.getMinutes();
+    const arrivalH = Math.ceil((startH + 3 + (startM > 0 ? 1 : 0)) % 24);
 
-        // Log to browser console to prove WASM is loaded
-        log_to_console("WASM module loaded successfully!");
+    let settings = {
+        defaultStartTime: `${String(startH).padStart(2,'0')}:${String(startM).padStart(2,'0')}`,
+        defaultArrivalTime: `${String(arrivalH).padStart(2,'0')}:00`,
+        defaultDistance: 25,
+        defaultSailSpeed: 5,
+        defaultMotorSpeed: 8,
+        maxDistance: 1000,
+        maxSailSpeed: 20,
+        maxMotorSpeed: 30,
+        fuelConsumption: 5,
+        useMetric: false,
+    };
 
-        // Expose functions globally so onclick handlers can call them
-        window.callGreet = () => {
-            const name = document.getElementById('name-input').value;
-            const result = greet(name);  // Rust function called from JS!
-            addOutput(`JS received from Rust: "${result}"`);
-        };
+    let isNextDay = false;
 
-        window.callAddToPage = () => {
-            const name = document.getElementById('name-input').value;
-            add_greeting_to_page(name);  // Rust directly modifies the DOM!
-        };
+    // --- DOM refs ---
+    const $startTime = document.getElementById('start-time');
+    const $arrivalTime = document.getElementById('arrival-time');
+    const $distance = document.getElementById('distance');
+    const $sailSpeed = document.getElementById('sail-speed');
+    const $motorSpeed = document.getElementById('motor-speed');
+    const $fuelConsumption = document.getElementById('fuel-consumption');
+    const $useMetric = document.getElementById('use-metric');
+    const $unitLabel = document.getElementById('unit-label');
+    const $distanceLabel = document.getElementById('distance-label');
+    const $sailSpeedLabel = document.getElementById('sail-speed-label');
+    const $motorSpeedLabel = document.getElementById('motor-speed-label');
+    const $resultCard = document.getElementById('result-card');
+    const $resultText = document.getElementById('result-text');
+    const $motorSpeedError = document.getElementById('motor-speed-error');
+    const $motorSpeedField = document.getElementById('motor-speed-field');
 
-        window.callFib = (n) => {
-            const start = performance.now();
-            const result = fibonacci(n);  // Heavy computation in Rust/WASM
-            const ms = (performance.now() - start).toFixed(3);
-            addOutput(`fibonacci(${n}) = ${result}  (computed in ${ms}ms by Rust/WASM)`);
-        };
+    // --- Initialize form with defaults ---
+    function applyDefaults() {
+        $startTime.value = settings.defaultStartTime;
+        $arrivalTime.value = settings.defaultArrivalTime;
+        $distance.value = settings.defaultDistance;
+        $sailSpeed.value = settings.defaultSailSpeed;
+        $motorSpeed.value = settings.defaultMotorSpeed;
+        $fuelConsumption.value = settings.fuelConsumption;
+        $useMetric.checked = settings.useMetric;
+        updateLabels();
+    }
 
-        window.callServer = async () => {
-            try {
-                const resp = await fetch('/api');
-                const text = await resp.text();
-                addOutput(`Server-side WASM responded: "${text}"`);
-            } catch (e) {
-                addOutput(`Error calling server: ${e.message}`);
-            }
-        };
+    function updateLabels() {
+        const metric = $useMetric.checked;
+        const distUnit = metric ? 'km' : 'zeemijl';
+        const speedUnit = metric ? 'km/u' : 'knopen';
+        $unitLabel.textContent = metric ? 'Metrisch (km, km/u)' : 'Nautisch (zeemijl, knopen)';
+        $distanceLabel.textContent = `Afstand (${distUnit})`;
+        $sailSpeedLabel.textContent = `Zeilsnelheid (${speedUnit})`;
+        $motorSpeedLabel.textContent = `Motorsnelheid (${speedUnit})`;
+        // Settings dialog labels
+        document.getElementById('s-max-distance-label').textContent = `Maximale afstand (${distUnit})`;
+        document.getElementById('s-max-sail-label').textContent = `Maximale zeilsnelheid (${speedUnit})`;
+        document.getElementById('s-max-motor-label').textContent = `Maximale motorsnelheid (${speedUnit})`;
+    }
 
-        function addOutput(text) {
-            const el = document.createElement('p');
-            el.style.cssText = 'font-family: monospace; padding: 8px; background: #e3f2fd; border-radius: 4px; margin: 4px 0; font-size: 14px;';
-            el.textContent = text;
-            document.getElementById('output').prepend(el);
+    function runCalculation() {
+        const startTime = $startTime.value;
+        const arrivalTime = $arrivalTime.value;
+        const distance = parseFloat($distance.value);
+        const sailSpeed = parseFloat($sailSpeed.value);
+        const motorSpeed = parseFloat($motorSpeed.value);
+        const fuelCons = parseFloat($fuelConsumption.value);
+
+        if (!startTime || !arrivalTime || isNaN(distance) || isNaN(sailSpeed) || isNaN(motorSpeed) || isNaN(fuelCons)) {
+            $resultCard.style.display = 'none';
+            return;
         }
-    </script>
+
+        // Validate motor speed
+        const motorErr = validate_motor_speed(sailSpeed, motorSpeed);
+        if (motorErr) {
+            $motorSpeedError.textContent = motorErr;
+            $motorSpeedField.classList.add('has-error');
+            $resultCard.style.display = 'none';
+            return;
+        } else {
+            $motorSpeedError.textContent = '';
+            $motorSpeedField.classList.remove('has-error');
+        }
+
+        // Check next-day
+        if (!isNextDay && needs_next_day(startTime, arrivalTime)) {
+            document.getElementById('nextday-dialog').classList.add('active');
+            return;
+        }
+
+        const result = calculate(
+            startTime, arrivalTime, distance, sailSpeed, motorSpeed,
+            fuelCons, $useMetric.checked, isNextDay
+        );
+
+        if (result.scenario === 'error') {
+            $resultCard.style.display = 'none';
+            return;
+        }
+
+        $resultText.innerHTML = result.result_html;
+        $resultCard.style.display = '';
+    }
+
+    // --- Event listeners ---
+    [$startTime, $arrivalTime, $distance, $sailSpeed, $motorSpeed, $fuelConsumption].forEach(el => {
+        el.addEventListener('input', () => { runCalculation(); });
+    });
+
+    $useMetric.addEventListener('change', () => {
+        updateLabels();
+        runCalculation();
+    });
+
+    // Next-day dialog
+    document.getElementById('btn-correct').addEventListener('click', () => {
+        $arrivalTime.value = '';
+        isNextDay = false;
+        document.getElementById('nextday-dialog').classList.remove('active');
+    });
+    document.getElementById('btn-nextday').addEventListener('click', () => {
+        isNextDay = true;
+        document.getElementById('nextday-dialog').classList.remove('active');
+        runCalculation();
+    });
+
+    // Settings dialog
+    document.getElementById('open-settings').addEventListener('click', () => {
+        document.getElementById('s-default-start').value = settings.defaultStartTime;
+        document.getElementById('s-default-arrival').value = settings.defaultArrivalTime;
+        document.getElementById('s-default-distance').value = settings.defaultDistance;
+        document.getElementById('s-default-sail').value = settings.defaultSailSpeed;
+        document.getElementById('s-default-motor').value = settings.defaultMotorSpeed;
+        document.getElementById('s-fuel').value = settings.fuelConsumption;
+        document.getElementById('s-max-distance').value = settings.maxDistance;
+        document.getElementById('s-max-sail').value = settings.maxSailSpeed;
+        document.getElementById('s-max-motor').value = settings.maxMotorSpeed;
+        document.getElementById('settings-dialog').classList.add('active');
+    });
+    document.getElementById('settings-cancel').addEventListener('click', () => {
+        document.getElementById('settings-dialog').classList.remove('active');
+    });
+    document.getElementById('settings-save').addEventListener('click', () => {
+        settings.defaultStartTime = document.getElementById('s-default-start').value;
+        settings.defaultArrivalTime = document.getElementById('s-default-arrival').value;
+        settings.defaultDistance = parseFloat(document.getElementById('s-default-distance').value);
+        settings.defaultSailSpeed = parseFloat(document.getElementById('s-default-sail').value);
+        settings.defaultMotorSpeed = parseFloat(document.getElementById('s-default-motor').value);
+        settings.fuelConsumption = parseFloat(document.getElementById('s-fuel').value);
+        settings.maxDistance = parseFloat(document.getElementById('s-max-distance').value);
+        settings.maxSailSpeed = parseFloat(document.getElementById('s-max-sail').value);
+        settings.maxMotorSpeed = parseFloat(document.getElementById('s-max-motor').value);
+        document.getElementById('settings-dialog').classList.remove('active');
+        applyDefaults();
+        runCalculation();
+    });
+
+    // --- Init ---
+    applyDefaults();
+    runCalculation();
+</script>
+
 </body>
 </html>

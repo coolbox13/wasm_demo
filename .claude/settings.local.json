@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(export PATH=\"/Users/hermanhello/.cargo/bin:$PATH\")",
+      "Bash(wasm-pack build:*)"
+    ]
+  }
+}
